@@ -11,7 +11,7 @@ The script is designed to remove Snap packages and the Snapd service from an Ubu
 ```./remove_snap.sh```
 
 # Which ubuntu ver it Support?
-it support 24.04,22.04
+it support every until now
 
 ```take backup of system and use at ur own risk```
 
