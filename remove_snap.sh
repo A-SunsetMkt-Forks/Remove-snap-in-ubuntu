@@ -136,7 +136,6 @@ if [ "$IS_FIREFOX" -eq 0 ] || [ "$IS_GNOME" -eq 0 ]; then
     else
       echo "    - Firefox"
     fi
-
   fi
 
   if [ "$IS_GNOME" -eq 0 ] ; then
