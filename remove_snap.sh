@@ -107,7 +107,6 @@ while snap list | awk 'NR > 1 {print $1}' | grep .; do
     echo "Waiting for Snap packages to be fully removed..."
     sleep 5
 done
-rm -rf ~/snap
 
 # Clean up Snap directories and create a preference file
 create_preference_file
