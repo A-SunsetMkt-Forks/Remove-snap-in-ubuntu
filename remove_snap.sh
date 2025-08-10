@@ -4,13 +4,18 @@ echo "thx for using our script"
 
 set -e
 
+if [ "$EUID" -ne 0 ]; then
+  echo "Please run as root: sudo $0"
+  exit 1
+fi
+
 # Function to prompt for user confirmation
 prompt_confirmation() {
     while true; do
         read -p "$1 [y/n]: " choice
         case "$choice" in
             y|Y ) return 0;; # Yes
-            n|N ) echo "Operation aborted."; exit 1;; # No
+            n|N ) return 1;; # No
             * ) echo "Please answer yes or no.";;
         esac
     done
@@ -37,7 +42,7 @@ remove_snapd() {
     sudo systemctl stop snapd || true
     sudo systemctl disable snapd || true
     sudo systemctl mask snapd || true
-    
+
     echo "Removing Snapd service..."
     sudo apt-get purge -y snapd || true
 }
@@ -45,6 +50,11 @@ remove_snapd() {
 
 # Function to create a preference file to prevent Snap from being reinstalled
 create_preference_file() {
+    # check duplicated file
+    if [ -f /etc/apt/preferences.d/nosnap.pref ]; then
+      sudo rm /etc/apt/preferences.d/nosnap.pref
+    fi
+
     echo "Creating preference file to prevent Snap from being reinstalled..."
     echo "Package: snapd" | sudo tee /etc/apt/preferences.d/nosnap.pref > /dev/null
     echo "Pin: release a=*" | sudo tee -a /etc/apt/preferences.d/nosnap.pref > /dev/null
@@ -60,13 +70,22 @@ install_firefox() {
     echo "Package: *" | sudo tee /etc/apt/preferences.d/mozilla > /dev/null
     echo "Pin: origin packages.mozilla.org" | sudo tee -a /etc/apt/preferences.d/mozilla > /dev/null
     echo "Pin-Priority: 1000" | sudo tee -a /etc/apt/preferences.d/mozilla > /dev/null
-    sudo apt-get update && sudo apt-get install -y firefox || handle_error "Failed to install Firefox"
+
+    sudo apt-get -qq update
+
+    IS_FFESR=1
+    if prompt_confirmation "Do you want to install ESR Version?"; then
+      IS_FFESR=0
+      sudo apt-get install -qq -y firefox-esr || handle_error "Failed to install Firefox"
+    else
+      sudo apt-get install -qq -y firefox || handle_error "Failed to install Firefox"
+    fi
 }
 
 # Function to install GNOME Software
 install_gnome_software() {
     echo "Installing GNOME Software..."
-    sudo apt install -y gnome-software || handle_error "Failed to install GNOME Software"
+    sudo apt install -qq -y gnome-software || handle_error "Failed to install GNOME Software"
 }
 
 # Function to handle errors
@@ -74,6 +93,7 @@ handle_error() {
     echo "Error: $1"
     exit 1
 }
+
 
 # Main script execution
 echo "Starting Snap removal process..."
@@ -89,17 +109,40 @@ while snap list | awk 'NR > 1 {print $1}' | grep .; do
 done
 
 # Clean up Snap directories and create a preference file
-
 create_preference_file
 
+IS_FIREFOX=1
 # Prompt for confirmation to install Firefox
-prompt_confirmation "Do you want to add Mozilla's APT repository and install Firefox?"
+if prompt_confirmation "Do you want to add Mozilla's APT repository and install Firefox?"; then
+  IS_FIREFOX=0
+  install_firefox
+fi
 
-install_firefox
-
+IS_GNOME=1
 # Prompt for confirmation to install GNOME Software
-prompt_confirmation "Do you want to install GNOME Software?"
+if prompt_confirmation "Do you want to install GNOME Software?"; then
+  IS_GNOME=0
+  install_gnome_software
+fi
 
-install_gnome_software
+# report of removal and installation process
+echo "========================================"
+echo "  Snap removal process completed."
 
-echo "Snap removal process completed. Firefox and GNOME Software have been installed."
+if [ "$IS_FIREFOX" -eq 0 ] || [ "$IS_GNOME" -eq 0 ]; then
+  if [ "$IS_FIREFOX" -eq 0 ]; then
+    if [ "$IS_FFESR" -eq 0 ]; then
+      echo "    - Firefox ESR"
+    else
+      echo "    - Firefox"
+    fi
+  fi
+
+  if [ "$IS_GNOME" -eq 0 ] ; then
+    echo "    - GNOME Software"
+  fi
+
+  echo "  has been installed."
+fi
+
+echo "========================================"
